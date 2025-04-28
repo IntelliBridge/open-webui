@@ -6,8 +6,8 @@ from typing import List, Any
 Element: TypeAlias = Any
 
 class ICDLoader(UnstructuredFileLoader):
-    def __init__(self, strategy="hi_res"):
-        super().__init__(strategy=strategy)
+    def __init__(self, file_path, strategy="hi_res"):
+        super().__init__(file_path=file_path, strategy=strategy)
     
     def _get_elements(self) -> List[Element]:
         from scrapers.custom_partition import partition
