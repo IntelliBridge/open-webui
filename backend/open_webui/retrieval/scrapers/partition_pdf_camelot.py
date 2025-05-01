@@ -136,7 +136,7 @@ class CamelotConfig:
         joint_tol: float = 2,
         table_fmt: str = "html",  # tabulate format
         headers: Union[str, List[str]] = "firstrow",
-        threshold_similarity: float = 0.8,  # Threshold for matching tables
+        threshold_similarity: float = 0.1,  # Threshold for matching tables
     ):
         self.enabled = enabled
         self.flavor = flavor
@@ -148,6 +148,7 @@ class CamelotConfig:
         self.table_fmt = table_fmt
         self.headers = headers
         self.threshold_similarity = threshold_similarity
+        self.coordinate_scale_factor = 0.36
 
 
 def bbox_overlap(bbox1: tuple, bbox2: tuple) -> float:
@@ -194,6 +195,14 @@ def process_table_with_camelot(
 ) -> Element:
     """Process a table element with Camelot and replace its text with tabulate output.
     
+    IMPORTANT: This function handles coordinate system differences between
+    Unstructured and Camelot:
+    - Unstructured: top-left origin, y-axis points down
+    - Camelot: bottom-left origin, y-axis points up (PDF coordinate space)
+    
+    Camelot's Table and Cell classes define coordinates relative to a left-bottom origin
+    in PDF coordinate space. Rows are defined in decreasing y-order.
+    
     Args:
         element: The table element to process
         filename: Path to the PDF file
@@ -215,7 +224,7 @@ def process_table_with_camelot(
     
     try:
         # Convert coordinates to Camelot format if available
-        table_area = None
+        element_bbox = None
         if (hasattr(element, "metadata") and 
             hasattr(element.metadata, "coordinates") and 
             element.metadata.coordinates):
@@ -228,9 +237,9 @@ def process_table_with_camelot(
                 x2 = max(points[1][0], points[2][0])
                 y2 = max(points[2][1], points[3][1])
                 
-                # Convert to Camelot format "x1,y1,x2,y2"
-                table_area = f"{x1},{y1},{x2},{y2}"
-        
+                # Store bbox for later comparison
+                element_bbox = (x1, y1, x2, y2)
+                        
         # For file objects, we need to save to a temporary file
         temp_file = None
         pdf_path = filename
@@ -244,6 +253,9 @@ def process_table_with_camelot(
                 pdf_path = temp_file.name
                 if hasattr(file, "seek"):
                     file.seek(0)  # Reset file pointer
+        
+        # First attempt: Extract tables WITHOUT specifying table_areas
+        # This allows Camelot to find all tables naturally
         camelot_kwargs = {
             "pages": str(page_number),
             "parallel": True,
@@ -254,32 +266,117 @@ def process_table_with_camelot(
             "joint_tol": config.joint_tol,
         }
         
-        # Add table_areas if we have them
-        # if table_area:
-        #     camelot_kwargs["table_areas"] = [table_area]
-        # elif config.table_areas:
-        #     camelot_kwargs["table_areas"] = config.table_areas
-        # Extract tables with Camelot
+        # Extract tables with Camelot without constraining to specific areas
         tables = camelot.read_pdf(pdf_path, **camelot_kwargs)
-
+        
+        # If no tables found or we need to use specific table areas from config
+        if not tables or len(tables) == 0:
+            # Try again with table_areas if available
+            if config.table_areas:
+                camelot_kwargs["table_areas"] = config.table_areas
+                tables = camelot.read_pdf(pdf_path, **camelot_kwargs)
+        
         if tables and len(tables) > 0:
             # If we have coordinates, find the best matching table
             best_table = None
-            best_overlap = 0.0
             
-            if table_area:
-                element_bbox = (x1, y1, x2, y2)
-                
-                for idx, table in enumerate(tables):
-                    # Camelot table bbox in (x1, y1, x2, y2) format
-                    # Note: Camelot's bbox might be in a different coordinate system
-                    table_bbox = table._bbox
+            if element_bbox:
+                # Get page dimensions for coordinate transformation
+                try:
+                    if hasattr(element, "metadata") and hasattr(element.metadata, "page_dimensions"):
+                        page_width = element.metadata.page_dimensions.width
+                        page_height = element.metadata.page_dimensions.height
+                    else:
+                        # Default to standard dimensions if not available
+                        page_width = 612  # Standard letter width in points
+                        page_height = 792  # Standard letter height in points
                     
-                    # Calculate overlap
-                    overlap = bbox_overlap(element_bbox, table_bbox)
-                    if overlap > best_overlap and overlap >= config.threshold_similarity:
-                        best_overlap = overlap
-                        best_table = table
+                    # Determine the scaling factor based on the example values
+                    # Scale factor can be calculated based on observed measurement differences
+                    # From the given example: Unstructured width is about 2.8 times Camelot width
+                    scale_factor = config.coordinate_scale_factor if hasattr(config, "coordinate_scale_factor") else 0.36  # 1/2.8 ≈ 0.36
+                    
+                    logger.debug(f"Element bbox (Unstructured coords): {element_bbox}")
+                    logger.debug(f"Page dimensions: {page_width}x{page_height}")
+                    logger.debug(f"Using scale factor: {scale_factor}")
+                    
+                    # Apply scaling to the element bbox coordinates before transforming
+                    scaled_element_bbox = (
+                        element_bbox[0] * scale_factor,
+                        element_bbox[1] * scale_factor,
+                        element_bbox[2] * scale_factor,
+                        element_bbox[3] * scale_factor
+                    )
+                    
+                    logger.debug(f"Scaled element bbox: {scaled_element_bbox}")
+                    
+                    # Transform Unstructured coordinates to Camelot's PDF coordinate system
+                    # Unstructured: origin at top-left, y-axis down
+                    # Camelot: origin at bottom-left, y-axis up
+                    transformed_element_bbox = (
+                        scaled_element_bbox[0],                      # x1 (scaled)
+                        page_height - scaled_element_bbox[3],        # y1 (flip y-axis for bottom coordinate)
+                        scaled_element_bbox[2],                      # x2 (scaled)
+                        page_height - scaled_element_bbox[1]         # y2 (flip y-axis for top coordinate)
+                    )
+                    
+                    logger.debug(f"Transformed element bbox (PDF coords): {transformed_element_bbox}")
+                    
+                    # Calculate reference dimensions for scale adjustment
+                    element_width = scaled_element_bbox[2] - scaled_element_bbox[0]
+                    element_height = scaled_element_bbox[3] - scaled_element_bbox[1]
+                    
+                    # Track tables and their scores
+                    table_scores = []
+                    
+                    for idx, table in enumerate(tables):
+                        # Camelot table bbox in (x1, y1, x2, y2) format where (x1,y1) is bottom-left
+                        table_bbox = table._bbox
+                        logger.debug(f"Camelot table {idx} bbox (PDF coords): {table_bbox}")
+                        
+                        # Calculate positional similarity - could be IOU or other metrics
+                        positional_score = bbox_overlap(transformed_element_bbox, table_bbox)
+                        
+                        # Calculate scale similarity - how similar are the table dimensions
+                        table_width = table_bbox[2] - table_bbox[0]
+                        table_height = table_bbox[3] - table_bbox[1]
+                        
+                        # Width ratio (table width / element width) - closer to 1 is better
+                        width_ratio = min(table_width / element_width, element_width / table_width) if element_width > 0 else 0
+                        # Height ratio (table height / element height) - closer to 1 is better
+                        height_ratio = min(table_height / element_height, element_height / table_height) if element_height > 0 else 0
+                        
+                        # Scale similarity score (0-1)
+                        scale_score = (width_ratio + height_ratio) / 2
+                        
+                        # Combined score - weighted average of positional and scale similarity
+                        # Adjust weights as needed
+                        position_weight = 0.7  # Increased from 0.3 since scaling should improve position matching
+                        scale_weight = 0.3     # Decreased from 0.7 since we've already applied scaling
+                        
+                        combined_score = (position_weight * positional_score) + (scale_weight * scale_score)
+                        
+                        table_scores.append((idx, combined_score, table))
+                        
+                        logger.debug(f"Table {idx}: Position score: {positional_score:.4f}, Scale score: {scale_score:.4f}, Combined: {combined_score:.4f}")
+                        
+                    # Sort tables by combined score (descending)
+                    table_scores.sort(key=lambda x: x[1], reverse=True)
+                    
+                    # Select best table if it meets threshold
+                    if table_scores and table_scores[0][1] >= config.threshold_similarity:
+                        best_idx, best_score, best_table = table_scores[0]
+                        logger.info(f"Selected table {best_idx} with combined score: {best_score:.4f}")
+                    else:
+                        if table_scores:
+                            logger.warning(f"Best table score {table_scores[0][1]:.4f} below threshold: {config.threshold_similarity}")
+                        else:
+                            logger.warning("No tables found to score")
+                        
+                except Exception as e:
+                    logger.warning(f"Error during table matching: {e}")
+                    trace_logger.exception(f"Table matching error: {e}")
+                    # Continue with fallback approach
             
             # If no matching table found or no coordinates available, use the first one
             if not best_table and tables:
@@ -355,7 +452,7 @@ def partition_pdf(
     camelot_process_background: bool = False,
     camelot_table_fmt: str = "html",
     camelot_headers: Union[str, List[str]] = "firstrow",
-    camelot_threshold_similarity: float = 0.8,
+    camelot_threshold_similarity: float = 0.1,
     **kwargs: Any,
 ) -> list[Element]:
     """Parses a pdf document into a list of interpreted elements.
@@ -987,7 +1084,7 @@ def _partition_pdf_or_image_local(
         process_background=kwargs.get("camelot_process_background", False),
         table_fmt=kwargs.get("camelot_table_fmt", "html"),
         headers=kwargs.get("camelot_headers", "firstrow"),
-        threshold_similarity=kwargs.get("camelot_threshold_similarity", 0.8),
+        threshold_similarity=kwargs.get("camelot_threshold_similarity", 0.1),
     )
     
     elements = document_to_element_list(
