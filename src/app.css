@@ -46,6 +46,14 @@ math {
 	@apply rounded-lg;
 }
 
+input::placeholder {
+	direction: auto;
+}
+
+textarea::placeholder {
+	direction: auto;
+}
+
 .input-prose {
 	@apply prose dark:prose-invert prose-headings:font-semibold prose-hr:my-4 prose-hr:border-gray-100 prose-hr:dark:border-gray-800 prose-p:my-0 prose-img:my-1 prose-headings:my-1 prose-pre:my-0 prose-table:my-0 prose-blockquote:my-0 prose-ul:-my-0 prose-ol:-my-0 prose-li:-my-0 whitespace-pre-line;
 }
@@ -83,10 +91,6 @@ math {
 	-webkit-app-region: no-drag;
 }
 
-iframe {
-	@apply rounded-lg;
-}
-
 li p {
 	display: inline;
 }
@@ -101,8 +105,8 @@ li p {
 
 /* Dark theme scrollbar styles */
 .dark ::-webkit-scrollbar-thumb {
-	background-color: rgba(42, 42, 42, 0.8); /* Darker color for dark theme */
-	border-color: rgba(0, 0, 0, var(--tw-border-opacity));
+	background-color: rgba(0, 37, 84, 0.8); /* Darker color for dark theme */
+	border-color: rgba(210, 60, 58, var(--tw-border-opacity));
 }
 
 ::-webkit-scrollbar {
@@ -149,13 +153,13 @@ select {
 }
 
 :global(.dark) .shimmer {
-	background: linear-gradient(90deg, #818286 25%, #eae5e5 50%, #818286 75%);
+	background: linear-gradient(90deg, #002554 25%, #D23C3A 50%, #002554 75%);
 	background-size: 200% 100%;
 	background-clip: text;
 	-webkit-background-clip: text;
 	-webkit-text-fill-color: transparent;
 	animation: shimmer 4s linear infinite;
-	color: #a1a3a7; /* Darker fallback color for dark mode */
+	color: #FAAE5B; /* Darker fallback color for dark mode */
 }
 
 @keyframes smoothFadeIn {
@@ -212,6 +216,28 @@ input::-webkit-inner-spin-button {
 
 input[type='number'] {
 	-moz-appearance: textfield; /* Firefox */
+}
+
+.katex-display {
+	@apply overflow-y-hidden overflow-x-auto max-w-full;
+}
+
+.katex-display::-webkit-scrollbar {
+	height: 0.4rem;
+	width: 0.4rem;
+}
+
+.katex-display:active::-webkit-scrollbar-thumb,
+.katex-display:focus::-webkit-scrollbar-thumb,
+.katex-display:hover::-webkit-scrollbar-thumb {
+	visibility: visible;
+}
+.katex-display::-webkit-scrollbar-thumb {
+	visibility: hidden;
+}
+
+.katex-display::-webkit-scrollbar-corner {
+	display: none;
 }
 
 .cm-editor {
