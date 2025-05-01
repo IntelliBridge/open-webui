@@ -10,7 +10,7 @@ class ICDLoader(UnstructuredFileLoader):
         super().__init__(file_path=file_path, strategy=strategy)
     
     def _get_elements(self) -> List[Element]:
-        from scrapers.custom_partition import partition
+        from open_webui.retrieval.scrapers.custom_partition import partition
         
         if isinstance(self.file_path, list):
             elements: List[Element] = []

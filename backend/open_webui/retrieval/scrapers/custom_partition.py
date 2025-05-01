@@ -209,7 +209,7 @@ def partition(
     # -- parameters. We'll come back to this after sorting out the other file types.
     if file_type == FileType.PDF:
         # partition_pdf = partitioner_loader.get(file_type)
-        from scrapers.partition_pdf_camelot import partition_pdf
+        from open_webui.retrieval.scrapers.partition_pdf_camelot import partition_pdf
         elements = partition_pdf(
             filename=filename,
             file=file,

@@ -19,7 +19,7 @@ from langchain_community.document_loaders import (
     UnstructuredXMLLoader,
     YoutubeLoader,
 )
-from icd_loader import ICDLoader
+from open_webui.retrieval.loaders.icd_loader import ICDLoader
 from langchain_core.documents import Document
 
 from open_webui.retrieval.loaders.mistral import MistralLoader
