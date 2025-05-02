@@ -212,7 +212,10 @@ class Loader:
                     mime_type=file_content_type,
                 )
         elif self.engine == "icdloader":
-            loader = ICDLoader(file_path)
+            if self._is_text_file(file_ext, file_content_type):
+                loader = TextLoader(file_path, autodetect_encoding=True)
+            else:
+                loader = ICDLoader(file_path)
         elif (
             self.engine == "document_intelligence"
             and self.kwargs.get("DOCUMENT_INTELLIGENCE_ENDPOINT") != ""
