@@ -293,6 +293,7 @@
 									<option value="docling">{$i18n.t('Docling')}</option>
 									<option value="document_intelligence">{$i18n.t('Document Intelligence')}</option>
 									<option value="mistral_ocr">{$i18n.t('Mistral OCR')}</option>
+									<option value="icdloader">{$i18n.t('ICD Doc Loader')}</option>
 								</select>
 							</div>
 						</div>
@@ -325,6 +326,10 @@
 									placeholder={$i18n.t('Enter Docling Server URL')}
 									bind:value={RAGConfig.DOCLING_SERVER_URL}
 								/>
+							</div>
+						{:else if RAGConfig.CONTENT_EXTRACTION_ENGINE === 'icdloader'}
+							<div class="flex w-full mt-1">
+								<p>Choosen custom ICDLoader logic.</p>
 							</div>
 						{:else if RAGConfig.CONTENT_EXTRACTION_ENGINE === 'document_intelligence'}
 							<div class="my-0.5 flex gap-2 pr-2">
