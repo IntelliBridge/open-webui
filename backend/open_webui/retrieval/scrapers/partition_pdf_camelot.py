@@ -928,8 +928,9 @@ def _partition_pdf_or_image_local(
     """Partition using package installed locally"""
     from unstructured_inference.inference.layout import (
         process_data_with_model,
-        process_file_with_model,
+        # process_file_with_model,
     )
+    from open_webui.retrieval.scrapers.layout import process_file_with_model
 
     from unstructured.partition.pdf_image.ocr import process_data_with_ocr, process_file_with_ocr
     from unstructured.partition.pdf_image.pdfminer_processing import (
