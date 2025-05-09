@@ -112,6 +112,4 @@ def download_if_needed_and_get_local_path(path_or_repo: str, filename: str, **kw
     if os.path.exists(full_path):
         return full_path
     else:
-        pointer = hf_hub_download(path_or_repo, filename, revision="7680d6f857780bcf8d49916aa2e8881bd49dee3e", **kwargs)
-        print("THANKS", pointer)
-        return pointer
+        return hf_hub_download(path_or_repo, filename, revision="7680d6f857780bcf8d49916aa2e8881bd49dee3e", **kwargs)
