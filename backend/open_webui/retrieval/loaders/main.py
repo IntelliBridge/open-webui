@@ -19,6 +19,7 @@ from langchain_community.document_loaders import (
     UnstructuredXMLLoader,
     YoutubeLoader,
 )
+from open_webui.retrieval.loaders.icd_loader import ICDLoader
 from langchain_core.documents import Document
 
 from open_webui.retrieval.loaders.mistral import MistralLoader
@@ -210,6 +211,11 @@ class Loader:
                     file_path=file_path,
                     mime_type=file_content_type,
                 )
+        elif self.engine == "icdloader":
+            if self._is_text_file(file_ext, file_content_type):
+                loader = TextLoader(file_path, autodetect_encoding=True)
+            else:
+                loader = ICDLoader(file_path)
         elif (
             self.engine == "document_intelligence"
             and self.kwargs.get("DOCUMENT_INTELLIGENCE_ENDPOINT") != ""
